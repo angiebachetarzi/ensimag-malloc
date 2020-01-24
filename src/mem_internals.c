@@ -17,15 +17,28 @@ unsigned long knuth_mmix_one_round(unsigned long in)
 
 void *mark_memarea_and_get_user_ptr(void *ptr, unsigned long size, MemKind k)
 {
-    /* ecrire votre code ici */
-    return (void *)0;
+    unsigned long magic = knuth_mmix_one_round((unsigned long )ptr & ~(0b11UL));
+    magic = (magic & ~(0b11UL))| k;
+    *(unsigned long *)ptr = size;
+    *(unsigned long *)(ptr + 1) = magic;
+    *(unsigned long *)(ptr + sizeof(size)/8 + 2) = magic;
+    *(unsigned long *)(ptr + sizeof(size)/8 + 3) = size;
+    return ptr + 16;
 }
 
 Alloc
 mark_check_and_get_alloc(void *ptr)
 {
-    /* ecrire votre code ici */
     Alloc a = {};
+    *(unsigned long *)a.ptr = *(unsigned long *)(ptr - 2);
+    a.size = *(unsigned long *)ptr;
+    a.kind = *(unsigned long *)(ptr - 1) & 0B11UL;
+    unsigned long magicEnd = *(unsigned long *)(ptr + sizeof(a.size)/8);
+    unsigned long tailleEnd = *(unsigned long *)(ptr + sizeof(a.size)/8 + 1);
+    unsigned long tailleDeb = *(unsigned long *)(ptr - 2);
+    unsigned long magicDeb = *(unsigned long *)(ptr - 1);
+    assert(magicDeb == magicEnd);
+    assert(tailleDeb == tailleEnd);
     return a;
 }
 
