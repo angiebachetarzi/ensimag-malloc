@@ -17,17 +17,15 @@ unsigned long knuth_mmix_one_round(unsigned long in)
 
 void *mark_memarea_and_get_user_ptr(void *ptr, unsigned long size, MemKind k)
 {
-    unsigned long magic = knuth_mmix_one_round((unsigned long )ptr);
-    magic = (magic & ~(0b11UL)) | k;
-    *(unsigned long *)(ptr + 1) = magic;
-
-    *(unsigned long *)ptr = size;
-    
-    *(unsigned long *)(ptr + sizeof(size)/8 - 2) = magic;
-    *(unsigned long *)(ptr + sizeof(size)/8 - 1) = size;
-
-    // 16 because the total of (size + magic) is 8B!!
-    return ptr + 16;
+    unsigned long *p = (unsigned long*) ptr;
+    *p = size;
+    unsigned long magic = knuth_mmix_one_round((unsigned long) p);
+    magic = (magic & ~(0b11UL)) + k;
+    *(p+1) = magic;
+    char *p_octet = (char *)p;
+    *(unsigned long *)(p_octet+16+ size-(4*8)) = magic;
+    *(unsigned long *)(p_octet+24+ size-(4*8)) = magic;
+    return p+2;
 }
 
 Alloc
@@ -35,22 +33,18 @@ mark_check_and_get_alloc(void *ptr)
 {
     Alloc a = {};
 
-    unsigned long actual_size = *(unsigned long *) (ptr - 2);
-    unsigned long actual_magic = *(unsigned long *)(ptr - 1);
-    unsigned long expected_magic = knuth_mmix_one_round((unsigned long) (ptr - 2));
+    unsigned long *p = (unsigned long *)ptr;
+    unsigned long size = *(p- 2);
+    unsigned long magic = *(p - 1);
+    a.ptr = (void *)(p - 2);
+    a.kind = magic & 0b11UL;
+    a.size = size;
 
-    //assert that actual_magic is correct
-    assert(actual_magic == expected_magic);
+    char *p_octet = (char *)p;
+    unsigned long *p_end = (unsigned long *)(p_octet + size-(4*8));
 
-    unsigned long size_end = *(unsigned long *)(ptr + actual_size/8 - 3);
-
-    //assert that size at the end is equal to the one at the start
-    assert(actual_size == size_end);
-
-    *(unsigned long *)a.ptr = *(unsigned long *)(ptr - 2);
-    a.kind = actual_magic & 0b11UL;
-    a.size = actual_size;
-
+    assert(magic == *p_end);
+    assert(size == *(p_end + 1));
     return a;
 }
 

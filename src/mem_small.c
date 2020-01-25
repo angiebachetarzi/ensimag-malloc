@@ -18,23 +18,23 @@ emalloc_small(unsigned long size)
         unsigned long chunk_number = new_chunkpool_size/CHUNKSIZE;
 
         //head of the list
-        void *ptr = arena.chunkpool;
+        void **ptr = (void **) arena.chunkpool;
 
         for (int i = 0; i < chunk_number; i++) {
             //actual ptr points to next one
-            *(void **)ptr = ptr + CHUNKSIZE;
+            *ptr = (void *)(ptr + CHUNKSIZE);
             //move on to the next chunk
             ptr = ptr + CHUNKSIZE;
         }
     }
 
     //get the first chunk of the chunkpool
-    void *ptr = arena.chunkpool;
+    void *first = arena.chunkpool;
     //update the chunkpool to get the first ptr
-    arena.chunkpool = *(void **) ptr;
+    arena.chunkpool = *(void **) arena.chunkpool;
 
     //call function to mark the ptr
-    return mark_memarea_and_get_user_ptr(ptr, CHUNKSIZE, SMALL_KIND);
+    return mark_memarea_and_get_user_ptr(first, CHUNKSIZE, SMALL_KIND);
     
 }
 
