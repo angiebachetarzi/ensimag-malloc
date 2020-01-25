@@ -17,12 +17,16 @@ unsigned long knuth_mmix_one_round(unsigned long in)
 
 void *mark_memarea_and_get_user_ptr(void *ptr, unsigned long size, MemKind k)
 {
-    unsigned long magic = knuth_mmix_one_round((unsigned long )ptr & ~(0b11UL));
-    magic = (magic & ~(0b11UL))| k;
-    *(unsigned long *)ptr = size;
+    unsigned long magic = knuth_mmix_one_round((unsigned long )ptr);
+    magic = (magic & ~(0b11UL)) | k;
     *(unsigned long *)(ptr + 1) = magic;
-    *(unsigned long *)(ptr + sizeof(size)/8 + 2) = magic;
-    *(unsigned long *)(ptr + sizeof(size)/8 + 3) = size;
+
+    *(unsigned long *)ptr = size;
+    
+    *(unsigned long *)(ptr + sizeof(size)/8 - 2) = magic;
+    *(unsigned long *)(ptr + sizeof(size)/8 - 1) = size;
+
+    // 16 because the total of (size + magic) is 8B!!
     return ptr + 16;
 }
 
@@ -30,15 +34,23 @@ Alloc
 mark_check_and_get_alloc(void *ptr)
 {
     Alloc a = {};
+
+    unsigned long actual_size = *(unsigned long *) (ptr - 2);
+    unsigned long actual_magic = *(unsigned long *)(ptr - 1);
+    unsigned long expected_magic = knuth_mmix_one_round((unsigned long) (ptr - 2));
+
+    //assert that actual_magic is correct
+    assert(actual_magic == expected_magic);
+
+    unsigned long size_end = *(unsigned long *)(ptr + actual_size/8 - 3);
+
+    //assert that size at the end is equal to the one at the start
+    assert(actual_size == size_end);
+
     *(unsigned long *)a.ptr = *(unsigned long *)(ptr - 2);
-    a.size = *(unsigned long *)ptr;
-    a.kind = *(unsigned long *)(ptr - 1) & 0B11UL;
-    unsigned long magicEnd = *(unsigned long *)(ptr + sizeof(a.size)/8);
-    unsigned long tailleEnd = *(unsigned long *)(ptr + sizeof(a.size)/8 + 1);
-    unsigned long tailleDeb = *(unsigned long *)(ptr - 2);
-    unsigned long magicDeb = *(unsigned long *)(ptr - 1);
-    assert(magicDeb == magicEnd);
-    assert(tailleDeb == tailleEnd);
+    a.kind = actual_magic & 0b11UL;
+    a.size = actual_size;
+
     return a;
 }
 
