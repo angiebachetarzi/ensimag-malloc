@@ -68,9 +68,47 @@ emalloc_medium(unsigned long size)
     return mark_memarea_and_get_user_ptr(p, new_size, MEDIUM_KIND);
 }
 
+void efree_medium_buddy(void* ptr_a, unsigned int k) {
+   //get buddy of the block a.ptr
+    void *buddy = (void *) ((uintptr_t)ptr_a ^ (1 << k));
+
+    //look for buddy in the list
+    //if the buddy is found, merge the corresponding blocks
+    void *current = arena.TZL[k];
+    while (current != NULL) {
+        //buddy is found and available!!
+        //merge blocks
+        if (*(void **)current == buddy) {
+
+            *(void **)current = *(void **)buddy;
+
+            void *whole_block;
+            if (ptr_a > buddy) {
+                whole_block = buddy;
+            } else {
+                whole_block = ptr_a;
+            }
+
+            return efree_medium_buddy(whole_block, k + 1);
+        }
+
+        current = *(void **)current;
+    }
+
+    //buddy not found
+    //update list by adding the free block
+    //at the first available block
+    //sizes of blocks need to be the same
+    *(void **)ptr_a = arena.TZL[k];
+    arena.TZL[k] = ptr_a;
+}
 
 void efree_medium(Alloc a) {
-    /* ecrire votre code ici */
+    unsigned int k = puiss2(a.size);
+    
+    //put the free block back in the list
+    //take care of the buddies
+    efree_medium_buddy(a.ptr, k);
 }
 
 
