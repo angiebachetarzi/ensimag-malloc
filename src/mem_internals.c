@@ -17,34 +17,54 @@ unsigned long knuth_mmix_one_round(unsigned long in)
 
 void *mark_memarea_and_get_user_ptr(void *ptr, unsigned long size, MemKind k)
 {
-    unsigned long *p = (unsigned long*) ptr;
+    //magic number
+    unsigned long magic = knuth_mmix_one_round((unsigned long)ptr);
+    magic = (magic & ~(0b11UL)) | k; 
+
+    //cast to 64b
+    unsigned long *p = (unsigned long *)ptr;
+    //cast to 8b
+    char *p_8b = (char *)ptr;
+
+    //initial size
     *p = size;
-    unsigned long magic = knuth_mmix_one_round((unsigned long) p);
-    magic = (magic & ~(0b11UL)) + k;
-    *(p+1) = magic;
-    char *p_octet = (char *)p;
-    *(unsigned long *)(p_octet+16+ size-(4*8)) = magic;
-    *(unsigned long *)(p_octet+24+ size-(4*8)) = magic;
-    return p+2;
+
+    //initial magic number
+    *(p + 1) = magic;
+
+    //magic number at the end
+    *(unsigned long *)(p_8b + 16 + size - 32) = magic;
+
+    //size at the end
+    *(unsigned long *)(p_8b + 24 + size - 32) = size;
+
+    return (p + 2);
 }
 
 Alloc
 mark_check_and_get_alloc(void *ptr)
 {
-    Alloc a = {};
-
     unsigned long *p = (unsigned long *)ptr;
+    char *p_octet = (char *)ptr;
+
     unsigned long size = *(p- 2);
     unsigned long magic = *(p - 1);
-    a.ptr = (void *)(p - 2);
-    a.kind = magic & 0b11UL;
-    a.size = size;
+    
+    unsigned long magic_end = *(unsigned long *)(p_octet + size-(4*8));
+    unsigned long size_end = *(unsigned long *)(p_octet + size-(4*8) + 8);
 
-    char *p_octet = (char *)p;
-    unsigned long *p_end = (unsigned long *)(p_octet + size-(4*8));
+    assert(magic == magic_end);
+    assert(size == size_end);
 
-    assert(magic == *p_end);
-    assert(size == *(p_end + 1));
+    MemKind k = (MemKind) magic & 0b11UL;
+
+    if (size - 32 <= SMALLALLOC) assert (k == SMALL_KIND);
+    Alloc a = {
+        (void *)(p - 2),
+        k,
+        size
+    };
+
     return a;
 }
 
