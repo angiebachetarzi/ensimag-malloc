@@ -44,26 +44,35 @@ void *mark_memarea_and_get_user_ptr(void *ptr, unsigned long size, MemKind k)
 Alloc
 mark_check_and_get_alloc(void *ptr)
 {
-    unsigned long *p = (unsigned long *)ptr;
-    char *p_octet = (char *)ptr;
+    Alloc a = {};
 
-    unsigned long size = *(p- 2);
-    unsigned long magic = *(p - 1);
-    
-    unsigned long magic_end = *(unsigned long *)(p_octet + size-(4*8));
-    unsigned long size_end = *(unsigned long *)(p_octet + size-(4*8) + 8);
+    //cast to 64b
+    unsigned long *p_64b = (unsigned long *) ptr;
 
-    assert(magic == magic_end);
-    assert(size == size_end);
+    //cast to 8b
+    char *p_8b = (char *) ptr;
 
-    MemKind k = (MemKind) magic & 0b11UL;
+    //get size at the beginning
+    unsigned long size_init = *(p_64b - 2);
 
-    if (size - 32 <= SMALLALLOC) assert (k == SMALL_KIND);
-    Alloc a = {
-        (void *)(p - 2),
-        k,
-        size
-    };
+    //get magic number at the beginning
+    unsigned long magic_init = *(p_64b - 1);
+
+    //get size at the end
+    unsigned long size_end = *(unsigned long *) (p_8b + size_init -32 + 8);
+
+    //get magic number at the end
+    unsigned long magic_end = *(unsigned long *) (p_8b + size_init -32);
+
+    //get the allocation type
+    MemKind type = (MemKind) magic_init & 0b11UL;
+
+    assert(magic_init == magic_end);
+    assert(size_init == size_end);
+
+    a.ptr = (void *)(p_64b - 2);
+    a.kind = type;
+    a.size = size_init;
 
     return a;
 }
