@@ -21,14 +21,51 @@ unsigned int puiss2(unsigned long size) {
     return p;
 }
 
+void * 
+get_available_block(int k) {
+    //case 1 : no more available blocks
+    //need to reallocate
+    if (k >= FIRST_ALLOC_MEDIUM_EXPOSANT + arena.medium_next_exponant) {
+        mem_realloc_medium();
+    }
+
+    //case 2 : find an available block
+    //need to remove it from the list and return it
+    void *curr = arena.TZL[k];
+    if (curr != NULL){
+        arena.TZL[k] = *(void**)curr;
+        return curr;
+    }
+
+    //case 3 : no blocks available
+    //need to get a bigger block
+    //divide a block number k+1 (recursively)
+    void *ptr = get_available_block(k + 1);
+    //get buddy and put it in the list
+    void *buddy = (void *)((uintptr_t)ptr ^ (1 << k));
+    *(void **) buddy = 0;
+    arena.TZL[k] = buddy;
+
+    //return the first half of the block
+    return ptr;
+}
 
 void *
 emalloc_medium(unsigned long size)
 {
     assert(size < LARGEALLOC);
     assert(size > SMALLALLOC);
-    /* ecrire votre code ici */
-    return (void *) 0;
+    
+    unsigned long new_size = size + 32;
+
+    unsigned int k = puiss2(new_size);
+
+    //get available block (size == 2^k)
+    //eventually, divide blocks to obtain it
+    void *p = get_available_block(k);
+    
+    //call marking function for the block
+    return mark_memarea_and_get_user_ptr(p, new_size, MEDIUM_KIND);
 }
 
 
